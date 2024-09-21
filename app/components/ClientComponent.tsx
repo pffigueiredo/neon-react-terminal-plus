@@ -47,6 +47,11 @@ const Table = ({ data }: { data: TableData }) => {
 };
 
 export default function ClientComponent() {
+  const [connectionString, setConnectionString] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState<
+    'success' | 'error' | 'idle' | 'loading'
+  >('idle');
+
   const commands = {
     ['\\dt']: () =>
       defaultHandler(
@@ -57,10 +62,31 @@ export default function ClientComponent() {
       ),
   };
 
+  const checkConnection = async () => {
+    try {
+      setConnectionStatus('loading');
+      const response = await fetch(
+        `/api/data?query=SELECT version();&connectionString=${connectionString}`
+      );
+      const result = await response.json();
+
+      if (result.error) {
+        setConnectionStatus('error');
+      } else {
+        setConnectionStatus('success');
+      }
+    } catch (error) {
+      setConnectionStatus('error');
+      console.error(error);
+    }
+  };
+
   const defaultHandler = async (command: string, args: string) => {
     try {
       const fullCommand = `${command} ${args}`;
-      const response = await fetch(`/api/data?query=${fullCommand}`);
+      const response = await fetch(
+        `/api/data?query=${fullCommand}&connectionString=${connectionString}`
+      );
       const result = await response.json();
 
       if (Array.isArray(result)) {
@@ -76,11 +102,35 @@ export default function ClientComponent() {
   return (
     <div>
       <h1>SQL Query Terminal</h1>
+
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <input
+          type="text"
+          placeholder="Enter connection string"
+          value={connectionString}
+          onChange={(e) => setConnectionString(e.target.value)}
+        />
+        {connectionStatus === 'success'
+          ? '✅'
+          : connectionStatus === 'error'
+          ? '❌'
+          : ''}
+        <button
+          onClick={checkConnection}
+          disabled={connectionStatus === 'loading'}
+        >
+          Check Connection
+        </button>
+      </div>
+
       <TerminalContextProvider>
         <ReactTerminal
           commands={commands}
+          enableInput={connectionStatus === 'success'}
+          caret={connectionStatus === 'success'}
+          welcomeMessage={<div>Welcome to the Neon's PSQL Web Terminal.</div>}
           defaultHandler={defaultHandler}
-          prompt="sql>"
+          prompt="psql>"
         />
       </TerminalContextProvider>
     </div>
